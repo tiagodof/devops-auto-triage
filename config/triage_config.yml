@@ -1,0 +1,25 @@
+ai_model: gpt-4o-mini
+
+story_points:
+  - 1
+  - 2
+  - 3
+  - 5
+  - 8
+  - 13
+
+labels:
+  bug: "d73a4a"
+  feature: "0075ca"
+  documentation: "0052cc"
+  question: "d876e3"
+  security: "e4e669"
+
+team:
+  - github_username: tiagodof
+    expertise:
+      - python
+      - fastapi
+      - devops
+      - react
+      - typescript
