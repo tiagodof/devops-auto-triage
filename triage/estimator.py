@@ -1,11 +1,12 @@
 """
 AI-powered story point estimator.
-Uses Fibonacci scale: 1, 2, 3, 5, 8, 13
+Uses Fibonacci scale: 1, 2, 3, 5, 8, 13.
 """
-import os
+import logging
 from openai import OpenAI
+from triage.llm import call_llm
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+logger = logging.getLogger(__name__)
 
 STORY_POINTS = [1, 2, 3, 5, 8, 13]
 
@@ -23,22 +24,31 @@ Guidelines:
 Respond with ONLY the number (e.g., 3). No explanation."""
 
 
-def estimate_complexity(title: str, body: str) -> int:
-    """Estimate story points for a GitHub issue using an LLM."""
-    user_message = f"Title: {title}\n\nBody: {body or '(no body provided)'}"
+def estimate_complexity(
+    title: str,
+    body: str,
+    model: str | None = None,
+    client: OpenAI | None = None,
+) -> int:
+    """Estimate story points for a GitHub issue. Returns a Fibonacci number."""
+    safe_title = title[:200]
+    safe_body  = (body or "")[:2000]
+    user_message = f"Title: {safe_title}\n\nBody: {safe_body or '(no body provided)'}"
 
     try:
-        response = client.chat.completions.create(
-            model=os.getenv("AI_MODEL", "gpt-4o-mini"),
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": user_message},
-            ],
-            temperature=0,
+        raw = call_llm(
+            system_prompt=SYSTEM_PROMPT,
+            user_message=user_message,
+            model=model,
             max_tokens=5,
+            client=client,
         )
-        result = int(response.choices[0].message.content.strip())
+        # Validate format before casting to avoid confusing ValueError
+        if not raw.isdigit():
+            logger.warning("Estimator received non-numeric response '%s' — using fallback", raw)
+            return 3
+        result = int(raw)
         return result if result in STORY_POINTS else 3
     except Exception as e:
-        print(f"[estimator] Error: {e}")
+        logger.error("estimate_complexity failed: %s — returning fallback 3", e)
         return 3

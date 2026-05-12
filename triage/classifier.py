@@ -2,10 +2,11 @@
 AI-powered issue classifier.
 Classifies GitHub issues into: bug, feature, documentation, question, security.
 """
-import os
+import logging
 from openai import OpenAI
+from triage.llm import call_llm
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+logger = logging.getLogger(__name__)
 
 CATEGORIES = ["bug", "feature", "documentation", "question", "security"]
 
@@ -23,22 +24,27 @@ Rules:
 Respond with exactly one word."""
 
 
-def classify_issue(title: str, body: str) -> str:
-    """Classify a GitHub issue using an LLM."""
-    user_message = f"Title: {title}\n\nBody: {body or '(no body provided)'}"
+def classify_issue(
+    title: str,
+    body: str,
+    model: str | None = None,
+    client: OpenAI | None = None,
+) -> str:
+    """Classify a GitHub issue using an LLM. Returns one of CATEGORIES."""
+    # Sanitise inputs: truncate to prevent prompt injection
+    safe_title = title[:200]
+    safe_body  = (body or "")[:2000]
+    user_message = f"Title: {safe_title}\n\nBody: {safe_body or '(no body provided)'}"
 
     try:
-        response = client.chat.completions.create(
-            model=os.getenv("AI_MODEL", "gpt-4o-mini"),
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": user_message},
-            ],
-            temperature=0,
+        result = call_llm(
+            system_prompt=SYSTEM_PROMPT,
+            user_message=user_message,
+            model=model,
             max_tokens=10,
-        )
-        result = response.choices[0].message.content.strip().lower()
+            client=client,
+        ).lower()
         return result if result in CATEGORIES else "question"
     except Exception as e:
-        print(f"[classifier] Error: {e}")
+        logger.error("classify_issue failed: %s — returning fallback 'question'", e)
         return "question"
